@@ -4,33 +4,95 @@ import numpy as np
 import h5py
 import torch
 
-# NOTE adapted from github.com/biolib/openprotein
+# from .utils import download_and_extract_archive
+from torchvision.datasets.utils import download_and_extract_archive
+from .preprocess import preprocess_proteinnet
 
-class proteinnet(torch.utils.data.Dataset):
-    def __init__(self, root, mode=train, version=13, thinning=90, download=True, transforms=None):
+# NOTE adapted from github.com/biolib/openprotein and github.com/pytorch/vision
 
-        # TODO check how the hdf5 encoded files are organized
-        filename = root+'casp'+str(version)+'/'+str(thinning)
-        if os.path.exists(filename):
-            self.h5py_file = h5py.File(filename, 'r')
-        else:
-            # TODO download text files
-            # TODO pre process into hdf5
-            pass
+# TODO insert md5 sums
+proteinnet_archives = {'casp7' : None, 'casp13' : None}
 
-        self.num_proteins, self.max_sequence_len = self.h5py_file['primary'].shape
+modes = {
+        30 : 'training_30',
+        50 : 'training_30',
+        70 : 'training_30',
+        90 : 'training_30',
+        95 : 'training_30',
+        100: 'training_100',
+        'val' : 'validation',
+        'test': 'testing',
+    }
+
+
+class ProteinNet(torch.utils.data.Dataset):
+    """
+    root: root directory of dataset
+    mode: either train thinning in [30, 50, 70, 90, 95, 100] or val or test
+    version: protinnet version between 7 and 13
+    transform: function that takes in a integer encoded amino acid string an returns a sample tensor
+    target_transform: function that takes a 3x3 x sequence length numpy array of backbone coordinates and returns a target tensor
+    """
+    def __init__(self, root, mode=90, version=13, download=False, transform=None, target_transform=None):
+        if mode not in modes:
+            raise ValueError("Unsupported mode.")
+        self.root = root
+        self.version = version
+        self.mode = mode
+        self.transform = transform
+        self.target_transform = target_transform
+        self.url = "https://sharehost.hms.harvard.edu/sysbio/alquraishi/proteinnet/human_readable/casp{}.tar.gz".format(version)
+
+        os.makedirs(os.path.join(root, 'preprocessed'), exist_ok=True)
+        self.filename = os.path.join(root, 'preprocessed/casp{}_{}.hdf5'.format(version, mode))
+        self.raw_filename = os.path.join(root, 'casp{}/{}'.format(version, modes[mode]))
+        self.archive_filename = os.path.join(root, 'casp{}.tar.gz'.format(version))
+
+        self.tgz_md5 = proteinnet_archives['casp{}'.format(version)]
+
+        if download:
+            self.download()
+
+        self.preprocess()
+
+        self.h5pyfile = h5py.File(self.filename, 'r')
+        self.num_proteins, self.max_sequence_len = self.h5pyfile['primary'].shape
 
         return
 
-    def __get_item__(self, index):
-        # TODO add transforms
-        mask = torch.Tensor(self.h5py_file['mask'][index, :]).type(dtype=torch.bool)
-        prim = torch.masked_select(torch.Tensor(self.h5py_file['primary'][index, :]).type(dtype=torch.long), mask)
-        tert = torch.Tensor(self.h5py_file['tertiary'][index][:int(mask.sum())])
+    def __getitem__(self, index):
+        # TODO for some reason the underlying h5pyfile does not raise the correct error when index out of range? fix this when redoing the preprocessing
+        if index >= len(self):
+            raise IndexError
+        mask = torch.Tensor(self.h5pyfile['mask'][index, :]).type(dtype=torch.bool)
+        prim = torch.masked_select(torch.Tensor(self.h5pyfile['primary'][index, :]).type(dtype=torch.long), mask)
+        tert = torch.Tensor(self.h5pyfile['tertiary'][index][:int(mask.sum())])
+        if self.transform is not None:
+            prim = self.transform(prim)
+        if self.target_transform is not None:
+            tert = self.target_transform(tert)
+
         return prim, tert
 
     def __len__(self):
         return self.num_proteins
 
+    def download(self):
+        if os.path.exists(os.path.join(self.root, 'casp{}/{}'.format(self.version, modes[self.mode]))):
+            return
 
-# TODO collating, batching, augmentation
+        download_and_extract_archive(self.url, self.root, filename=self.archive_filename, md5=self.tgz_md5)
+        return
+
+    # TODO only get C_alphas instead of all backbone coordinates
+    def preprocess(self):
+        if os.path.exists(os.path.join(self.root, self.filename)):
+            return
+        preprocess_proteinnet(self.root, filename=self.raw_filename, out_filename=self.filename)
+        return
+
+
+class ProteinNetRaw(torch.utils.data.Dataset):
+    def __init__(self):
+        raise(NotImplementedError)
+        return

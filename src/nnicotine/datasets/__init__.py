@@ -1,1 +1,1 @@
-from .proteinnet import proteinnet
+from .proteinnet import ProteinNet
