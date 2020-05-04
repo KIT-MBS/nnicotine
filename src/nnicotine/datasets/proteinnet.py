@@ -4,11 +4,9 @@ import numpy as np
 import h5py
 import torch
 
-# from .utils import download_and_extract_archive
 from torchvision.datasets.utils import download_and_extract_archive
-from .preprocess import preprocess_proteinnet
+# from .preprocess import preprocess_proteinnet
 
-# NOTE adapted from github.com/biolib/openprotein and github.com/pytorch/vision
 
 # TODO insert md5 sums
 proteinnet_archives = {'casp7' : None, 'casp13' : None}
@@ -25,6 +23,7 @@ modes = {
     }
 
 
+# TODO map astral domains to pdb entries and chain sections
 class ProteinNet(torch.utils.data.Dataset):
     """
     root: root directory of dataset
@@ -32,8 +31,12 @@ class ProteinNet(torch.utils.data.Dataset):
     version: protinnet version between 7 and 13
     transform: function that takes in a integer encoded amino acid string an returns a sample tensor
     target_transform: function that takes a 3x3 x sequence length numpy array of backbone coordinates and returns a target tensor
+    raw: whether to include raw MSAs, only available for proteinnet12
+    cbeta: whether to include cbeta coordinates, needs pdb to extract information
+    raw_root: location of raw MSA database, ignored if raw is False
+    pdb_root: location of pdb, ignore if cbeta is False
     """
-    def __init__(self, root, mode=90, version=13, download=False, transform=None, target_transform=None):
+    def __init__(self, root, mode=90, version=13, download=False, preprocess=False, transform=None, target_transform=None, raw=False, cbeta=False, raw_root=None, pdb_root=None):
         if mode not in modes:
             raise ValueError("Unsupported mode.")
         self.root = root
@@ -45,7 +48,7 @@ class ProteinNet(torch.utils.data.Dataset):
 
         os.makedirs(os.path.join(root, 'preprocessed'), exist_ok=True)
         self.filename = os.path.join(root, 'preprocessed/casp{}_{}.hdf5'.format(version, mode))
-        self.raw_filename = os.path.join(root, 'casp{}/{}'.format(version, modes[mode]))
+        self.text_filename = os.path.join(root, 'casp{}/{}'.format(version, modes[mode]))
         self.archive_filename = os.path.join(root, 'casp{}.tar.gz'.format(version))
 
         self.tgz_md5 = proteinnet_archives['casp{}'.format(version)]
@@ -53,7 +56,8 @@ class ProteinNet(torch.utils.data.Dataset):
         if download:
             self.download()
 
-        self.preprocess()
+        if preprocess:
+            self.preprocess()
 
         self.h5pyfile = h5py.File(self.filename, 'r')
         self.num_proteins, self.max_sequence_len = self.h5pyfile['primary'].shape
@@ -61,7 +65,6 @@ class ProteinNet(torch.utils.data.Dataset):
         return
 
     def __getitem__(self, index):
-        # TODO for some reason the underlying h5pyfile does not raise the correct error when index out of range? fix this when redoing the preprocessing
         if index >= len(self):
             raise IndexError
         mask = torch.Tensor(self.h5pyfile['mask'][index, :]).type(dtype=torch.bool)
@@ -88,11 +91,6 @@ class ProteinNet(torch.utils.data.Dataset):
     def preprocess(self):
         if os.path.exists(os.path.join(self.root, self.filename)):
             return
-        preprocess_proteinnet(self.root, filename=self.raw_filename, out_filename=self.filename)
-        return
-
-
-class ProteinNetRaw(torch.utils.data.Dataset):
-    def __init__(self):
-        raise(NotImplementedError)
+        raise
+        # preprocess_proteinnet(self.root, filename=self.raw_filename, out_filename=self.filename)
         return
