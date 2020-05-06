@@ -4,6 +4,7 @@ import glob
 import numpy as np
 import h5py
 import torch
+from tqdm import tqdm
 
 # NOTE adapted from github.com/biolib/openprotein
 
@@ -68,9 +69,11 @@ def convert_proteinnet_file(in_filename, out_filename):
     file_pointer = open(in_filename, 'r')
     next_entry = read_entry(file_pointer)
     n = 0
+    print("counting samples...")
     while next_entry is not None:
         next_entry = read_entry(file_pointer)
         n +=1
+    print(n)
 
     with h5py.File(out_filename, 'w') as handle:
 
@@ -79,7 +82,7 @@ def convert_proteinnet_file(in_filename, out_filename):
         chain_id_dset = handle.create_dataset('chainids', (n,), dtype='S1')
 
         with open(in_filename, 'r') as file_pointer:
-            for i in range(n):
+            for i in tqdm(range(n)):
                 entry = read_entry(file_pointer)
                 ID = entry['id']
                 if len(ID.split('_')) == 3:
@@ -95,7 +98,7 @@ def convert_proteinnet_file(in_filename, out_filename):
                 pdb_id_dset[i] = np.string_(pdbcode)
                 chain_id_dset[i] = np.string_(chain_id)
 
-                sample_group = handle.create_group(pdbcode)
+                sample_group = handle.create_group(entry['id'])
 
                 l = len(entry['primary'])
 

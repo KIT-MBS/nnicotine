@@ -6,7 +6,7 @@ from nnicotine import datasets
 
 data_root_dir = os.environ['DATA_PATH']
 
-ds = datasets.ProteinNet(os.path.join(data_root_dir, 'proteinnet/data/'), mode=30, version=7, download=True)
+ds = datasets.ProteinNet(os.path.join(data_root_dir, 'proteinnet/data/'), mode=30, version=7, download=True, preprocess=True)
 
 print(len(ds))
 
