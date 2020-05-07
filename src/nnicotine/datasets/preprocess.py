@@ -79,7 +79,7 @@ def convert_proteinnet_file(in_filename, out_filename):
 
         fullnames_dset = handle.create_dataset('ids', (n,), dtype='S12')
         pdb_id_dset = handle.create_dataset('pdbids', (n,), dtype='S4')
-        chain_id_dset = handle.create_dataset('chainids', (n,), dtype='S1')
+        chain_id_dset = handle.create_dataset('chainids', (n,), dtype='S3')
 
         with open(in_filename, 'r') as file_pointer:
             for i in tqdm(range(n)):
@@ -91,8 +91,7 @@ def convert_proteinnet_file(in_filename, out_filename):
                     pdbcode, sid = ID.split('_')
                     # TODO what about a chain_id with more than one symbol?
                     chain_id = sid[5]
-
-                assert len(chain_id) == 1
+                    assert len(sid) == 7
 
                 fullnames_dset[i] = np.string_(entry['id'])
                 pdb_id_dset[i] = np.string_(pdbcode)
