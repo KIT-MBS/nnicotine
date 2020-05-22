@@ -36,13 +36,13 @@ revnet.output_stack.append(y2.detach())
 
 assert x1.eq(x2).all()
 assert y1.eq(y2).all()
+assert (notrevnet.f.weight == revnet.f.weight).all()
 
 y1.sum().backward()
 y2.sum().backward()
 
-assert (x1.grad == x2.grad).all()
-assert (notrevnet.f.weight == revnet.f.weight).all()
-assert (notrevnet.f.weight.grad == revnet.f.weight.grad).all()
+assert ((x1.grad - x2.grad) < 0.00001).all()
+assert ((notrevnet.f.weight.grad - revnet.f.weight.grad) < 0.00001).all()
 
 
 
