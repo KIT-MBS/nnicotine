@@ -1,11 +1,16 @@
 import torch
+from pytest import approx
 from torch import nn
 from nnicotine.modules import ReversibleConvBlock
 
-class NotRevNet(nn.Module):
-    def __init__(self, channels, kernel_size, padding=0):
-        super(NotRevNet, self).__init__()
-        self.f = nn.Conv2d(channels, channels, kernel_size, padding=padding)
+
+class NotReversibleBlock(nn.Module):
+    def __init__(self, channels, kernel_size, padding=0, dropout=0.):
+        super(NotReversibleBlock, self).__init__()
+        if dropout>0.:
+            self.f = nn.Sequential(nn.Conv2d(channels, channels, kernel_size, padding=padding), nn.Dropout(p=dropout))
+        else:
+            self.f = nn.Conv2d(channels, channels, kernel_size, padding=padding)
         self.g = nn.ELU(alpha=1.)
 
     def forward(self, x):
@@ -18,35 +23,45 @@ class NotRevNet(nn.Module):
 
 s = 42
 
-torch.manual_seed(s)
-notrevnet = NotRevNet(3, 3, padding=1)
-x1 = torch.randn(2, 6, 10, 10, requires_grad=True)
+def test_revblock():
 
-torch.manual_seed(s)
-revnet = ReversibleConvBlock(3, 3, padding=1)
-revnet.output_stack=[]
-x2 = torch.randn(2, 6, 10, 10, requires_grad=True)
+    torch.manual_seed(s)
+    notrevnet = NotReversibleBlock(3, 3, padding=1)
+    x1 = torch.randn(2, 6, 10, 10, requires_grad=True)
 
+    torch.manual_seed(s)
+    revnet = ReversibleConvBlock(3, 3, padding=1)
+    revnet.output_stack=[]
+    x2 = torch.randn(2, 6, 10, 10, requires_grad=True)
 
-y1 = notrevnet(x1)
+    y1 = notrevnet(x1)
+    y2 = revnet(x2)
+    revnet.output_stack.append(y2.detach())
 
-torch.manual_seed(s)
-y2 = revnet(x2)
-revnet.output_stack.append(y2.detach())
+    assert x1.eq(x2).all()
+    assert y1.eq(y2).all()
+    assert (notrevnet.f.weight == revnet.f.weight).all()
 
-assert x1.eq(x2).all()
-assert y1.eq(y2).all()
-assert (notrevnet.f.weight == revnet.f.weight).all()
+    y1.sum().backward()
+    y2.sum().backward()
 
-y1.sum().backward()
-y2.sum().backward()
-
-assert ((x1.grad - x2.grad) < 0.00001).all()
-assert ((notrevnet.f.weight.grad - revnet.f.weight.grad) < 0.00001).all()
-
+    assert (x1.grad - x2.grad).max().item() == approx(0., abs=1e-6)
+    assert (notrevnet.f.weight.grad - revnet.f.weight.grad).max().item() == approx(0., abs=1e-5)
 
 
+def test_revnet():
+    return
 
+def test_rev_rng_retention():
+    return
 
-# TODO preserve rng state
-# TODO preserve device rng state
+def test_rev_device_rng_retention():
+    return
+
+if __name__ == "__main__":
+    test_revblock()
+    test_revnet()
+    test_rev_rng_retention()
+    test_rev_device_rng_retention()
+
+    print("all tests passed")
