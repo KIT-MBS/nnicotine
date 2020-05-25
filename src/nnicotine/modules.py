@@ -52,14 +52,25 @@ class ReversibleSequential(nn.Sequential):
 
 # TODO norm
 class ReversibleConvBlock(ReversibleBlock):
-    def __init__(self, channels, kernel_size, padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros', alpha=1.):
-        conv = nn.Conv2d(
-                channels, channels, kernel_size,
-                stride=1, padding=padding, dilation=dilation,
-                groups=groups, bias=bias, padding_mode=padding_mode
-            )
+    def __init__(self, channels, kernel_size, padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros', alpha=1., dropout=0.5):
+        f = None
+        if dropout ==0.0:
+            f = nn.Conv2d(
+                    channels, channels, kernel_size,
+                    stride=1, padding=padding, dilation=dilation,
+                    groups=groups, bias=bias, padding_mode=padding_mode
+                )
+        else:
+            f = nn.Sequential(
+                    nn.Conv2d(
+                        channels, channels, kernel_size,
+                        stride=1, padding=padding, dilation=dilation,
+                        groups=groups, bias=bias, padding_mode=padding_mode
+                    ),
+                    nn.Dropout(p=dropout)
+                    )
         nonl = nn.ELU(alpha=alpha)
-        super(ReversibleConvBlock, self).__init__(conv, nonl)
+        super(ReversibleConvBlock, self).__init__(f, nonl)
 
 
 # TODO norm
