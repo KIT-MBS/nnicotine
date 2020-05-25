@@ -45,10 +45,9 @@ class ReversibleSequential(nn.Sequential):
         return
 
     def forward(self, x):
-        with torch.no_grad():
-            y = super(ReversibleSequential, self).forward(x)
-            self.output_stack.append(y)
-            return y
+        y = super(ReversibleSequential, self).forward(x)
+        self.output_stack.append(y)
+        return y
 
 
 # TODO norm
