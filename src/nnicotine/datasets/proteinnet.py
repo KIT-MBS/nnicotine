@@ -72,7 +72,7 @@ class ProteinNet(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # TODO should the hdf5file not do this by itself?
         if index >= len(self):
-            raise IndexError
+            raise IndexError()
         ID = self.h5pyfile['ids'][index].tostring().decode('utf-8')
 
         prim = self.h5pyfile[ID]['primary']
