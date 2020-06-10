@@ -1,25 +1,38 @@
 import os
+import random
 
-# def download_and_extract_archive(url, download_root, extract_root=None, filename=None, md5=None, remove_finished=False):
-#
-#     download_root = os.path.expanduser(download_root)
-#     if extract_root is None:
-#         extract_root = download_root
-#
-#     if not filename:
-#         filename = os.path.basename(url)
-#
-#     download_url(url, download_root, filename, md5)
-#
-#     archive = os.path.join(download_root, filename)
-#
-#     print("Extracting {} to {}".format(archive, extract_root))
-#     extract_archive(archive, extract_root, remove_finished)
-#
-#     return
-#
-# def download_url(url, download_root, filename, md5):
-#     return
-#
-# def extract_archive(archive, extract_root, remove_finished=False):
-#     return
+def cath_train_test_split(domains, max_test_family_size=200, min_test_samples=1800, random_state=None):
+    superfamilies = {}
+    for domain in domains:
+        domain_id, version, cath_code, boundaries = domain
+        superfamily = cath_code.split('.')[3]
+        if superfamily not in superfamilies:
+            superfamilies[superfamily] = 1
+        else:
+            superfamilies[superfamily] += 1
+
+        possible_test_superfamilies = [x for x in superfamilies if superfamilies[x] < max_test_family_size]
+        test_families = set()
+        test_samples = 0
+
+        random.seed(random_state)
+        random.shuffle(possible_test_superfamilies)
+        for f in possible_test_superfamilies:
+            test_families.add(f)
+            test_samples += superfamilies[f]
+            if test_samples > min_test_samples: break
+
+    train_domains = []
+    test_domains = []
+
+    for domain in domains:
+        if domain[2].split('.')[3] in test_families:
+            test_domains.append(domain)
+        else:
+            train_domains.append(domain)
+
+    return train_domains, test_domains
+
+
+def generate_msa(dataset):
+    return
