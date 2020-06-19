@@ -3,6 +3,7 @@ from collections import OrderedDict
 import gzip
 import re
 
+import numpy as np
 import h5py
 import torch
 from Bio.PDB.MMCIFParser import MMCIFParser
@@ -64,14 +65,16 @@ class CATHDerived(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if index >= len(self):
             raise IndexError()
-        ID = self.h5pyfile['ids'][index].tostring().decode('utf-8')
+        domain_id = self.h5pyfile['ids'][index].tostring().decode('utf-8')
 
         # TODO
-        msa = None
-        gapped_prim = None
+        # msa = None
+        # gapped_sequence = None
 
-        sample = OrderedDict(('primary', gapped_prim), ('msa', msa))
-        target = OrderedDict(('cb', gapped_cb), ('ca', gapped_ca))
+        # sample = OrderedDict(('sequence', gapped_sequence), ('msa', msa))
+        # target = OrderedDict(('cb', gapped_cb), ('ca', gapped_ca))
+        sample = self.h5pyfile[domain_id]['sequence'][...].tostring().decode('utf-8')
+        target = self.h5pyfile[domain_id]['ca'][...]
 
         return sample, target
 
@@ -84,6 +87,9 @@ class CATHDerived(torch.utils.data.Dataset):
         download_url(self.url, self.versionroot, filename=self.cathfile)
 
     def preprocess(self, **kwargs):
+        if os.path.exists(self.h5pyfilename):
+            print("using existing file")
+            return
         pdb_root = kwargs.get('pdb_root', os.path.join(self.root, '../pdb'))
         if not os.path.exists(pdb_root):
              raise RuntimeError("A PDB containing structural data on CATH domains is required.")
@@ -96,37 +102,73 @@ class CATHDerived(torch.utils.data.Dataset):
 
         toy_domains = train_domains[:10]
 
-        with h5py.File(self.h5pyfilename, 'w') as f:
-            for domain in toy_domains:
-                domain_id, version, cath_code, boundaries = domain
-                pdb_id = domain_id[:4]
-                print(pdb_id)
-                boundaries, chain_id = boundaries.split(':')
-                lower, upper = re.findall("-*\d+", boundaries)
-                lower = int(lower)
-                upper = int(upper[1:]) + 1
-                l = upper - lower
+        for mode, domains in [('toy', toy_domains)]: # TODO other modes
+            h5pyfilename = os.path.join(self.root, "{}/{}.hdf5".format(self.version, mode))
+            with h5py.File(h5pyfilename, 'w') as handle:
+                # NOTE write IDs to file
+                id_dset = handle.create_dataset('ids', (len(domains),), dtype='S7')
 
-                pdb_file = get_pdb_filename(pdb_id, pdb_root)
+                for i, domain in enumerate(domains): # TODO tqdm
+                    domain_id, version, cath_code, boundaries = domain
+                    pdb_id = domain_id[:4]
+                    print(domain_id)
+                    print(pdb_id)
+                    id_dset[i] = np.string_(domain_id)
+                    boundaries, chain_id = boundaries.split(':')
+                    lower, upper = re.findall("-*\d+", boundaries)
+                    lower = int(lower)
+                    upper = int(upper[1:]) + 1
+                    l = upper - lower
 
-                parser = MMCIFParser()
-                with gzip.open(pdb_file, 'rt') as f:
-                    s = parser.get_structure(pdb_id, f)
-                c = s[0][chain_id]
-                chain_number = parser._mmcif_dict["_entity_poly.pdbx_strand_id"].index(chain_id)
-                seq = parser._mmcif_dict["_entity_poly.pdbx_seq_one_letter_code_can"][chain_number]
-                # TODO write sequence to fasta?
-                aas = []
-                for i in range(lower, upper):
-                    if i in c:
-                        aas.append(protein_letters_3to1[c[i].resname.capitalize()])
-                    else:
-                        aas.append('-')
-                print(''.join(aas))
-                print(seq)
-                for subseq in ''.join(aas).split('-'):
-                    if subseq not in seq: raise RuntimeError("Part of the sequence found in the structure does not match the database sequence:\n {} \n{}".format(str(subseq), seq))
+                    pdb_file = get_pdb_filename(pdb_id, pdb_root)
 
-                # TODO write label to hdf5 file
+                    parser = MMCIFParser()
+                    with gzip.open(pdb_file, 'rt') as f:
+                        s = parser.get_structure(pdb_id, f)
+                    c = s[0][chain_id]
+                    # NOTE some cifs are formatted weirdly
+                    strand_ids = parser._mmcif_dict["_entity_poly.pdbx_strand_id"]
+                    seq_idx = [idx for idx, s in enumerate(strand_ids) if chain_id in s][0]
+                    print(strand_ids)
+                    seq = parser._mmcif_dict["_entity_poly.pdbx_seq_one_letter_code_can"][seq_idx]
+                    aas = []
+                    for i in range(lower, upper):
+                        if i in c:
+                            aas.append(protein_letters_3to1[c[i].get_resname().capitalize()])
+                        else:
+                            aas.append('-')
+                    print("domain from structure: ", ''.join(aas))
+                    print("full chain sequence  : ", seq)
+                    if '-' in aas:
+                        for subseq in ''.join(aas).split('-'):
+                            if subseq not in seq: raise RuntimeError("Part of the sequence found in the structure does not match the database sequence:\n {} \n{}".format(str(subseq), seq))
+                        first = ''.join(aas).split('-')[0]
+                        start = seq.find(first)
+                        for i, aa in enumerate(aas):
+                            if aa == '-':
+                                aas[i] = seq[start+i]
+                        if ''.join(aas) not in seq: raise RuntimeError("Missing residue letters could not be reconstructed correctly:\n {} \n {}".format(''.join(aas), seq))
+                        print("reconstructed from st: ", ''.join(aas))
+
+
+                    ca_coords = np.full((l, 3), float('inf'), dtype=np.float32)
+                    cb_coords = np.full((l, 3), float('inf'), dtype=np.float32)
+
+                    for i in range(lower, upper):
+                        if i in c:
+                            r = c[i]
+                            if 'CA' in r:
+                                ca_coords[i-lower, :] = r['CA'].get_coord()[:]
+                            if 'CB' in r:
+                                cb_coords[i-lower, :] = r['CB'].get_coord()[:]
+                            if r.get_resname() == 'GLY':
+                                cb_coords[i-lower, :] = ca_coords[i-lower, :]
+
+
+                    sample_group = handle.create_group(domain_id)
+                    # TODO write sequence to file to generate MSA
+                    sequence_ds = sample_group.create_dataset('sequence', data=np.string_(''.join(aas)))
+                    ca_ds = sample_group.create_dataset('ca', data=ca_coords)
+                    cb_ds = sample_group.create_dataset('cb', data=cb_coords)
 
         return
