@@ -49,8 +49,8 @@ class CATHDerived(torch.utils.data.Dataset):
         else:
             y = version[0:4]
             m = version[4:6]
-            d = version[5:]
-            self.url = urlbase + "all-releases/archive/cath-b-{}{}{}-s35-all.gz"
+            d = version[6:]
+            self.url = urlbase + "daily-release/archive/cath-b-{}{}{}-s35-all.gz".format(y, m, d)
         self.version = version
         self.versionroot = os.path.join(self.root, self.version)
         os.makedirs(self.versionroot, exist_ok=True)
@@ -82,14 +82,17 @@ class CATHDerived(torch.utils.data.Dataset):
         return self.num_samples
 
     def download(self):
-        if os.path.exists(self.versionroot):
+        if os.path.exists(os.path.join(self.versionroot, self.cathfile)):
             return
+        print(self.url)
         download_url(self.url, self.versionroot, filename=self.cathfile)
 
     def preprocess(self, **kwargs):
         if os.path.exists(self.h5pyfilename):
-            print("using existing file")
-            return
+            # TODO
+            # print("using existing file")
+            # return
+            pass
         pdb_root = kwargs.get('pdb_root', os.path.join(self.root, '../pdb'))
         if not os.path.exists(pdb_root):
              raise RuntimeError("A PDB containing structural data on CATH domains is required.")
@@ -102,17 +105,15 @@ class CATHDerived(torch.utils.data.Dataset):
 
         toy_domains = train_domains[:10]
 
-        for mode, domains in [('toy', toy_domains)]: # TODO other modes
+        for mode, domains in [('toy', toy_domains), ('train', train_domains), ('test', test_domains)]:
             h5pyfilename = os.path.join(self.root, "{}/{}.hdf5".format(self.version, mode))
             with h5py.File(h5pyfilename, 'w') as handle:
-                # NOTE write IDs to file
                 id_dset = handle.create_dataset('ids', (len(domains),), dtype='S7')
 
                 for i, domain in enumerate(domains): # TODO tqdm
                     domain_id, version, cath_code, boundaries = domain
                     pdb_id = domain_id[:4]
                     print(domain_id)
-                    print(pdb_id)
                     id_dset[i] = np.string_(domain_id)
                     boundaries, chain_id = boundaries.split(':')
                     lower, upper = re.findall("-*\d+", boundaries)
@@ -131,6 +132,7 @@ class CATHDerived(torch.utils.data.Dataset):
                     seq_idx = [idx for idx, s in enumerate(strand_ids) if chain_id in s][0]
                     print(strand_ids)
                     seq = parser._mmcif_dict["_entity_poly.pdbx_seq_one_letter_code_can"][seq_idx]
+                    seq = ''.join(seq.split())
                     aas = []
                     for i in range(lower, upper):
                         if i in c:
@@ -140,19 +142,41 @@ class CATHDerived(torch.utils.data.Dataset):
                     print("domain from structure: ", ''.join(aas))
                     print("full chain sequence  : ", seq)
                     if '-' in aas:
+                        print("gaaaaaaps")
                         for subseq in ''.join(aas).split('-'):
-                            if subseq not in seq: raise RuntimeError("Part of the sequence found in the structure does not match the database sequence:\n {} \n{}".format(str(subseq), seq))
-                        first = ''.join(aas).split('-')[0]
-                        start = seq.find(first)
-                        for i, aa in enumerate(aas):
-                            if aa == '-':
-                                aas[i] = seq[start+i]
-                        if ''.join(aas) not in seq: raise RuntimeError("Missing residue letters could not be reconstructed correctly:\n {} \n {}".format(''.join(aas), seq))
+                            if subseq not in seq:
+                                raise RuntimeError("Part of the sequence found in the structure does not match the database sequence:\n{}\n{}".format(str(subseq), seq))
+                        # first = ''.join(aas).split('-')[0]
+                        # start = seq.find(first)
+                        # for i, aa in enumerate(aas):
+                        #     if aa == '-':
+                        #         aas[i] = seq[start+i]
+
+                        # TODO really short resolved subsequences are going to be a problem
+
+                        # resolved_boundaries = [(seq.find(subseq), seq.find(subseq)+len(subseq)) for subseq in ''.join(aas).split('-') if subseq != '']
+
+                        subseqs = [subseq for subseq in ''.join(aas).split('-') if subseq != '']
+                        resolved = [seq.find]
+                        for subseq in subeqs:
+
+                        print(resolved_boundaries)
+                        for i in range(len(resolved_boundaries)-1):
+                            unresolved_start = resolved_boundaries[i][1]
+                            unresolved_end = resolved_boundaries[i+1][0]
+                            for j in range(unresolved_start, unresolved_end):
+                                aas[j-resolved_boundaries[0][0]] = seq[j]
+                                print(j, seq[j])
+
+
+                        # TODO print warning if there is still a gap in there
+                        if ''.join(aas) not in seq:
+                            print(l, lower, upper)
+                            raise RuntimeError("Missing residue letters could not be reconstructed correctly:\n{}\n{}".format(''.join(''.join(aas).split('-')), seq))
                         print("reconstructed from st: ", ''.join(aas))
 
-
-                    ca_coords = np.full((l, 3), float('inf'), dtype=np.float32)
-                    cb_coords = np.full((l, 3), float('inf'), dtype=np.float32)
+                    ca_coords = np.full((l, 3), float('nan'), dtype=np.float32)
+                    cb_coords = np.full((l, 3), float('nan'), dtype=np.float32)
 
                     for i in range(lower, upper):
                         if i in c:
