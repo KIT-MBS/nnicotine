@@ -8,6 +8,7 @@ import h5py
 import torch
 from Bio.PDB.MMCIFParser import MMCIFParser
 from torchvision.datasets.utils import download_url
+from tqdm import tqdm
 
 from .utils import cath_train_test_split, get_pdb_filename, protein_letters_3to1
 
@@ -110,7 +111,7 @@ class CATHDerived(torch.utils.data.Dataset):
             with h5py.File(h5pyfilename, 'w') as handle:
                 id_dset = handle.create_dataset('ids', (len(domains),), dtype='S7')
 
-                for i, domain in enumerate(domains): # TODO tqdm
+                for i, domain in enumerate(tqdm(domains)):
                     domain_id, version, cath_code, boundaries = domain
                     pdb_id = domain_id[:4]
                     print(domain_id)
@@ -133,47 +134,64 @@ class CATHDerived(torch.utils.data.Dataset):
                     print(strand_ids)
                     seq = parser._mmcif_dict["_entity_poly.pdbx_seq_one_letter_code_can"][seq_idx]
                     seq = ''.join(seq.split())
-                    aas = []
+                    residues = []
                     for i in range(lower, upper):
                         if i in c:
-                            aas.append(protein_letters_3to1[c[i].get_resname().capitalize()])
+                            residues.append(protein_letters_3to1[c[i].get_resname().capitalize()])
                         else:
-                            aas.append('-')
-                    print("domain from structure: ", ''.join(aas))
+                            residues.append('-')
+                    strucseq = [aa for aa in residues]
+
+                    print("domain from structure: ", ''.join(strucseq))
                     print("full chain sequence  : ", seq)
-                    if '-' in aas:
-                        print("gaaaaaaps")
-                        for subseq in ''.join(aas).split('-'):
-                            if subseq not in seq:
-                                raise RuntimeError("Part of the sequence found in the structure does not match the database sequence:\n{}\n{}".format(str(subseq), seq))
-                        # first = ''.join(aas).split('-')[0]
-                        # start = seq.find(first)
-                        # for i, aa in enumerate(aas):
-                        #     if aa == '-':
-                        #         aas[i] = seq[start+i]
+                    if '-' in residues:
+                        strucseq = _optimistic_resolve_gaps(strucseq, seq, lower, upper)
+                        if ''.join(strucseq) not in seq:
+                            strucseq = [aa for aa in residues]
+                            strucseq = _length_mismatch_resolve_gaps(strucseq, seq, lower, upper)
 
-                        # TODO really short resolved subsequences are going to be a problem
-
-                        # resolved_boundaries = [(seq.find(subseq), seq.find(subseq)+len(subseq)) for subseq in ''.join(aas).split('-') if subseq != '']
-
-                        subseqs = [subseq for subseq in ''.join(aas).split('-') if subseq != '']
-                        resolved = [seq.find]
-                        for subseq in subeqs:
-
-                        print(resolved_boundaries)
-                        for i in range(len(resolved_boundaries)-1):
-                            unresolved_start = resolved_boundaries[i][1]
-                            unresolved_end = resolved_boundaries[i+1][0]
-                            for j in range(unresolved_start, unresolved_end):
-                                aas[j-resolved_boundaries[0][0]] = seq[j]
-                                print(j, seq[j])
+                    if ''.join(strucseq) not in seq:
+                        degapped_strucseq = ''.join([subseq for subseq in ''.join(strucseq).split('-') if subseq != ''])
+                        if degapped_strucseq not in seq:
+                            raise RuntimeError("Reconstructed sequence does not match the expected data base sequence:\n{}\n{}".format(''.join(strucseq, seq)))
+                        else:
+                            print("Warning: Missing residues could not be filled in from sequence information. Keeping unresolved gaps.")
 
 
-                        # TODO print warning if there is still a gap in there
-                        if ''.join(aas) not in seq:
-                            print(l, lower, upper)
-                            raise RuntimeError("Missing residue letters could not be reconstructed correctly:\n{}\n{}".format(''.join(''.join(aas).split('-')), seq))
-                        print("reconstructed from st: ", ''.join(aas))
+                    # if '-' in aas:
+                    #     print("gaaaaaaps")
+                    #     for subseq in ''.join(aas).split('-'):
+                    #         if subseq not in seq:
+                    #             raise RuntimeError("Part of the sequence found in the structure does not match the database sequence:\n{}\n{}".format(str(subseq), seq))
+                    #     # first = ''.join(aas).split('-')[0]
+                    #     # start = seq.find(first)
+                    #     # for i, aa in enumerate(aas):
+                    #     #     if aa == '-':
+                    #     #         aas[i] = seq[start+i]
+
+                    #     # TODO really short resolved subsequences are going to be a problem
+
+                    #     # resolved_boundaries = [(seq.find(subseq), seq.find(subseq)+len(subseq)) for subseq in ''.join(aas).split('-') if subseq != '']
+
+                    #     subseqs = [subseq for subseq in ''.join(aas).split('-') if subseq != '']
+                    #     resolved = [seq.find]
+                    #     for subseq in subeqs:
+                    #         pass
+
+                    #     print(resolved_boundaries)
+                    #     for i in range(len(resolved_boundaries)-1):
+                    #         unresolved_start = resolved_boundaries[i][1]
+                    #         unresolved_end = resolved_boundaries[i+1][0]
+                    #         for j in range(unresolved_start, unresolved_end):
+                    #             aas[j-resolved_boundaries[0][0]] = seq[j]
+                    #             print(j, seq[j])
+
+
+                    #     # TODO print warning if there is still a gap in there
+                    #     if ''.join(aas) not in seq:
+                    #         print(l, lower, upper)
+                    #         raise RuntimeError("Missing residue letters could not be reconstructed correctly:\n{}\n{}".format(''.join(''.join(aas).split('-')), seq))
+                    #     print("reconstructed from st: ", ''.join(aas))
 
                     ca_coords = np.full((l, 3), float('nan'), dtype=np.float32)
                     cb_coords = np.full((l, 3), float('nan'), dtype=np.float32)
@@ -191,8 +209,36 @@ class CATHDerived(torch.utils.data.Dataset):
 
                     sample_group = handle.create_group(domain_id)
                     # TODO write sequence to file to generate MSA
-                    sequence_ds = sample_group.create_dataset('sequence', data=np.string_(''.join(aas)))
+                    sequence_ds = sample_group.create_dataset('sequence', data=np.string_(strucseq))
                     ca_ds = sample_group.create_dataset('ca', data=ca_coords)
                     cb_ds = sample_group.create_dataset('cb', data=cb_coords)
 
         return
+
+def _optimistic_resolve_gaps(strucseq, seq, lower, upper):
+    subseqs = [subseq for subseq in ''.join(strucseq).split('-') if subseq != '']
+    longest_subseq = max(subseqs, key=len)
+    longest_start_seq = seq.find(longest_subseq)
+    longest_start_struc = ''.join(strucseq).find(longest_subseq)
+
+    if len(seq) - longest_start_seq < len(strucseq) - longest_start_struc:
+        return strucseq
+
+    for i in range(len(strucseq)):
+        if strucseq[i] == '-':
+            strucseq[i] = seq[longest_start_seq - longest_start_struc + i]
+        else:
+            if strucseq[i] != seq[longest_start_seq - longest_start_struc + i]:
+                raise RuntimeError("sequence mismatch:{}\n{}\nat index {}".format(''.join(strucseq), seq, i))
+
+    return strucseq
+
+def _length_mismatch_resolve_gaps(strucseq, seq, lower, upper):
+    resolved_boundaries = [(seq.find(subseq), seq.find(subseq)+len(subseq)) for subseq in ''.join(strucseq).split('-') if subseq != '']
+
+    for i in range(len(resolved_boundaries)-1):
+        unresolved_start = resolved_boundaries[i][1]
+        unresolved_end = resolved_boundaries[i+1][0]
+        for j in range(unresolved_start, unresolved_end):
+            strucseq[j-resolved_boundaries[0][0]] = seq[j]
+    return strucseq
