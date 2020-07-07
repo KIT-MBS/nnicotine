@@ -13,16 +13,16 @@ def cath_train_test_split(domains, max_test_family_size=200, min_test_samples=18
         else:
             superfamilies[superfamily] += 1
 
-        possible_test_superfamilies = [x for x in superfamilies if superfamilies[x] < max_test_family_size]
-        test_families = set()
-        test_samples = 0
+    possible_test_superfamilies = [x for x in superfamilies if superfamilies[x] < max_test_family_size]
+    test_families = set()
+    test_samples = 0
 
-        random.seed(random_state)
-        random.shuffle(possible_test_superfamilies)
-        for f in possible_test_superfamilies:
-            test_families.add(f)
-            test_samples += superfamilies[f]
-            if test_samples > min_test_samples: break
+    random.seed(random_state)
+    random.shuffle(possible_test_superfamilies)
+    for f in possible_test_superfamilies:
+        test_families.add(f)
+        test_samples += superfamilies[f]
+        if test_samples > min_test_samples: break
 
     train_domains = []
     test_domains = []
@@ -32,6 +32,7 @@ def cath_train_test_split(domains, max_test_family_size=200, min_test_samples=18
             test_domains.append(domain)
         else:
             train_domains.append(domain)
+    assert len(test_domains) > min_test_samples
 
     return train_domains, test_domains
 
