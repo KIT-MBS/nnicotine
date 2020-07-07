@@ -1,11 +1,36 @@
-from nnicotine.datasets.cath import _length_mismatch_resolve_gaps
+from nnicotine.datasets.cath import _resolve_gaps
 
-strucseq = "B--CD-FG"
-strucseq = [x for x in strucseq]
 refseq = "ABCDEFGHI"
+strucseq = [x for x in refseq]
+result = _resolve_gaps(strucseq, refseq)
+assert result == refseq
 
-# strucseq =  "H--QAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINE-NQLSEHILVER---------AVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDD"
-# strucseq = [x for x in strucseq]
-# refseq = "GSHMQAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINEMNQLSEHILVERATGGKGGGGAVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDDALPLNSLLAAISRFSLQTSARNQWFGTITARDHDDVQQHVDVLLADGKTRLKVAITAQSGARLGLDEGKEVLILLKAPWVGITQDEAVAQNADNQLPGIISHIERGAEQCEVLMALPDGQTLCATVPVNEATSLQQGQNVTAYFNADSVIIATLC"
+strucseq = [x for x in "---FGHI"]
+result = _resolve_gaps(strucseq, refseq)
+assert result == "CDEFGHI"
 
-_length_mismatch_resolve_gaps(strucseq, refseq)
+strucseq = [x for x in "A-----G"]
+result = _resolve_gaps(strucseq, refseq)
+assert result in refseq
+
+strucseq = [x for x in "AB-----EFG"]
+result = _resolve_gaps(strucseq, refseq)
+assert result == "ABCD---EFG"
+
+strucseq = [x for x in "AB-D-E-FGHI"]
+result = _resolve_gaps(strucseq, refseq)
+assert result == "ABCD-E-FGHI"
+
+strucseq = [x for x in "ABCD--EFG-I"]
+result = _resolve_gaps(strucseq, refseq)
+assert result == "ABCD--EFGHI"
+
+strucseq = [x for x in "B--CD-FG"]
+result = _resolve_gaps(strucseq, refseq)
+assert result == "B--CDEFG"
+
+
+strucseq = [x for x in "H--QAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINE-NQLSEHILVER---------AVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDD"]
+refseq = "GSHMQAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINEMNQLSEHILVERATGGKGGGGAVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDDALPLNSLLAAISRFSLQTSARNQWFGTITARDHDDVQQHVDVLLADGKTRLKVAITAQSGARLGLDEGKEVLILLKAPWVGITQDEAVAQNADNQLPGIISHIERGAEQCEVLMALPDGQTLCATVPVNEATSLQQGQNVTAYFNADSVIIATLC"
+result = _resolve_gaps(strucseq, refseq)
+assert ''.join(result.split('-')) in refseq
