@@ -268,3 +268,45 @@ def _length_mismatch_resolve_gaps(strucseq, seq):
             strucseq[j-resolved_boundaries[0][0]] = seq[j]
         offset += strucseq[unresolved_end-resolved_boundaries[0][0]+offset:].count('-') - []
     return strucseq
+
+def _resolve_gaps(strucseq, seq):
+    subseqs = re.findall(r'\w+|-+', ''.join(strucseq))
+    resolved_subseqs = [s for s in subseqs if s[0] != '-']
+    # NOTE use longest resolved subsequence as anchor into reference sequence
+    longest_resolved = max(resolved_subseqs, key=len)
+    longest_subseqs_index = subseqs.index(longest_resolved)
+    longest_start_seq = seq.find(longest_resolved)
+    longest_start_struc = ''.join(strucseq).find(longest_resolved)
+
+    offset = longest_start_seq - longest_start_struc
+
+    subseqs_starts = [offset + sum([len(s) for s in subseqs[:i]]) for i in range(len(subseqs))]
+
+    # NOTE fix false indices from too long gaps before anchor
+    for i in range(longest_subseqs_index-2, -1, -2):
+        s = subseqs[i]
+        while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)]:
+            for j in range(i+1, -1, -1):
+                subseqs_starts[j] += 1
+    # NOTE resolve gaps before anchor
+    for i in range((longest_subseqs_index+1)%2, longest_subseqs_index, 2):
+        s = [x for x in subseqs[i]]
+        for j in range(subseqs_starts[i+1]-subseqs_starts[i]):
+            s[j] = seq[subseqs_starts[i]+j]
+        subseqs[i] = ''.join(s)
+
+    # NOTE fix false indices from too long gaps after anchor
+    for i in range(longest_subseqs_index+2, len(subseqs), 2):
+        s = subseqs[i]
+        while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)]:
+            for j in range(i, len(subseqs)):
+                subseqs_starts[j] -= 1
+    # NOTE resolve gaps after anchor
+    # TODO do before and after anchor in one loop
+    for i in range(longest_subseqs_index+1, len(subseqs), 2):
+        s = [x for x in subseqs[i]]
+        for j in range(subseqs_starts[i+1]-subseqs_starts[i]):
+            s[j] = seq[subseqs_starts[i]+j]
+        subseqs[i] = ''.join(s)
+
+    return ''.join(subseqs)
