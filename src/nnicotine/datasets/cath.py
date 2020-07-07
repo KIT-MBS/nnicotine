@@ -28,8 +28,6 @@ class CATHDerived(torch.utils.data.Dataset):
 
     """
 
-
-
     def __init__(self, root, mode='train', version='daily', generate=False, transform=None, target_transform=None, **kwargs):
         if mode != 'toy': raise NotImplementedError("That stuff comes later")
         self.root = root
@@ -116,8 +114,20 @@ class CATHDerived(torch.utils.data.Dataset):
                     pdb_id = domain_id[:4]
                     print(domain_id)
                     id_dset[i] = np.string_(domain_id)
+                    if ',' in boundaries:
+                        # NOTE if the domain consists of several fragments: pick only the longest one
+                        # NOTE this domain definition doess not seem particularly sensible to me, but what do I know...
+                        fragment_boundaries = boundaries.split(',')
+                        # TODO put this in a list comprehension
+                        fragment_sizes = []
+                        for b in fragment_boundaries:
+                            b = b.split(':')[0]
+                            lower, upper = re.findall("-*\d+", b)
+                            fragment_sizes.append(int(upper)-int(lower))
+                        boundaries = fragment_boundaries[np.argmax(fragment_sizes)]
                     boundaries, chain_id = boundaries.split(':')
                     lower, upper = re.findall("-*\d+", boundaries)
+
                     lower = int(lower)
                     upper = int(upper[1:]) + 1
                     l = upper - lower
@@ -145,15 +155,15 @@ class CATHDerived(torch.utils.data.Dataset):
                     print("domain from structure: ", ''.join(strucseq))
                     print("full chain sequence  : ", seq)
                     if '-' in residues:
-                        strucseq = _optimistic_resolve_gaps(strucseq, seq, lower, upper)
+                        strucseq = _optimistic_resolve_gaps(strucseq, seq)
                         if ''.join(strucseq) not in seq:
                             strucseq = [aa for aa in residues]
-                            strucseq = _length_mismatch_resolve_gaps(strucseq, seq, lower, upper)
+                            strucseq = _length_mismatch_resolve_gaps(strucseq, seq)
 
                     if ''.join(strucseq) not in seq:
                         degapped_strucseq = ''.join([subseq for subseq in ''.join(strucseq).split('-') if subseq != ''])
                         if degapped_strucseq not in seq:
-                            raise RuntimeError("Reconstructed sequence does not match the expected data base sequence:\n{}\n{}".format(''.join(strucseq, seq)))
+                            raise RuntimeError("Reconstructed sequence does not match the expected data base sequence:\n{}\n{}".format(''.join(strucseq), seq))
                         else:
                             print("Warning: Missing residues could not be filled in from sequence information. Keeping unresolved gaps.")
 
@@ -215,30 +225,46 @@ class CATHDerived(torch.utils.data.Dataset):
 
         return
 
-def _optimistic_resolve_gaps(strucseq, seq, lower, upper):
+def _optimistic_resolve_gaps(strucseq, seq):
     subseqs = [subseq for subseq in ''.join(strucseq).split('-') if subseq != '']
     longest_subseq = max(subseqs, key=len)
     longest_start_seq = seq.find(longest_subseq)
     longest_start_struc = ''.join(strucseq).find(longest_subseq)
 
-    if len(seq) - longest_start_seq < len(strucseq) - longest_start_struc:
-        return strucseq
+    strucseq_copy = [x for x in strucseq]
 
     for i in range(len(strucseq)):
         if strucseq[i] == '-':
             strucseq[i] = seq[longest_start_seq - longest_start_struc + i]
         else:
             if strucseq[i] != seq[longest_start_seq - longest_start_struc + i]:
-                raise RuntimeError("sequence mismatch:{}\n{}\nat index {}".format(''.join(strucseq), seq, i))
+                # raise RuntimeError("sequence mismatch:{}\n{}\nat index {}".format(''.join(strucseq), seq, i))
+                return strucseq
 
     return strucseq
 
-def _length_mismatch_resolve_gaps(strucseq, seq, lower, upper):
+# NOTE when the length of the gap in the structure is longer than in the reference sequence
+# TODO only works if the mismatch is in the last gap
+def _length_mismatch_resolve_gaps(strucseq, seq):
     resolved_boundaries = [(seq.find(subseq), seq.find(subseq)+len(subseq)) for subseq in ''.join(strucseq).split('-') if subseq != '']
 
+    offset = 0
     for i in range(len(resolved_boundaries)-1):
         unresolved_start = resolved_boundaries[i][1]
         unresolved_end = resolved_boundaries[i+1][0]
+        assert unresolved_start <= unresolved_end
         for j in range(unresolved_start, unresolved_end):
+            if strucseq[j-resolved_boundaries[0][0]] != '-':
+                print(resolved_boundaries)
+                print(i)
+                print('index into ref sequence: ', j)
+                print('index into str sequence: ', j-resolved_boundaries[0][0])
+                print(unresolved_start, unresolved_end)
+                print(''.join(seq[unresolved_start:unresolved_end]))
+                print(strucseq[j-resolved_boundaries[0][0]])
+                # print(strucseq[j-])
+                print(seq[j])
+                assert False
             strucseq[j-resolved_boundaries[0][0]] = seq[j]
+        offset += strucseq[unresolved_end-resolved_boundaries[0][0]+offset:].count('-') - []
     return strucseq
