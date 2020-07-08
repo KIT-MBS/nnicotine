@@ -38,6 +38,9 @@ def cath_train_test_split(domains, max_test_family_size=200, min_test_samples=18
 
 def get_pdb_filename(pdb_code, pdb_root):
     pdb_filename = os.path.join(pdb_root, "divided/{}/{}.cif.gz".format(pdb_code[1:3], pdb_code))
+    if not os.path.isfile(pdb_filename):
+        pdb_filename = os.path.join(pdb_root, "obsolete/{}/{}.cif.gz".format(pdb_code[1:3], pdb_code))
+
     return pdb_filename
 
 
