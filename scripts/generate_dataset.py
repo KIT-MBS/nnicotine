@@ -8,7 +8,7 @@ data_root_dir = os.environ['DATA_PATH']
 root = os.path.join(data_root_dir, "nnicotine")
 pdb_root = os.path.join(data_root_dir, "pdb")
 
-dataset = datasets.CATHDerived(root, mode='toy', version='20200530', generate=True, pdb_root=pdb_root)
+dataset = datasets.CATHDerived(root, mode='toy', version='20200708', generate=True, pdb_root=pdb_root)
 
 for sample, target in dataset:
     print(sample)
