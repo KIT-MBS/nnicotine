@@ -1,4 +1,5 @@
 import os
+import sys
 from collections import OrderedDict
 import gzip
 import re
@@ -112,13 +113,10 @@ class CATHDerived(torch.utils.data.Dataset):
                 for i, domain in enumerate(tqdm(domains)):
                     domain_id, version, cath_code, boundaries = domain
                     pdb_id = domain_id[:4]
-                    print(domain_id)
                     id_dset[i] = np.string_(domain_id)
                     if ',' in boundaries:
                         # NOTE if the domain consists of several fragments: pick only the longest one
-                        # NOTE this domain definition doess not seem particularly sensible to me, but what do I know...
                         fragment_boundaries = boundaries.split(',')
-                        # TODO put this in a list comprehension
                         fragment_sizes = []
                         for b in fragment_boundaries:
                             b = b.split(':')[0]
@@ -141,7 +139,6 @@ class CATHDerived(torch.utils.data.Dataset):
                     # NOTE some cifs are formatted weirdly
                     strand_ids = parser._mmcif_dict["_entity_poly.pdbx_strand_id"]
                     seq_idx = [idx for idx, s in enumerate(strand_ids) if chain_id in s][0]
-                    print(strand_ids)
                     seq = parser._mmcif_dict["_entity_poly.pdbx_seq_one_letter_code_can"][seq_idx]
                     seq = ''.join(seq.split())
                     residues = []
@@ -152,17 +149,15 @@ class CATHDerived(torch.utils.data.Dataset):
                             residues.append('-')
                     strucseq = [aa for aa in residues]
 
-                    print("domain from structure: ", ''.join(strucseq))
-                    print("full chain sequence  : ", seq)
                     if '-' in residues:
                         strucseq = _resolve_gaps(strucseq, seq)
 
                     if ''.join(strucseq) not in seq:
                         degapped_strucseq = ''.join([subseq for subseq in ''.join(strucseq).split('-') if subseq != ''])
                         if degapped_strucseq not in seq:
-                            raise RuntimeError("Reconstructed sequence does not match the expected data base sequence:\n{}\n{}".format(''.join(strucseq), seq))
+                            raise RuntimeError("Reconstructed sequence does not match the expected data base sequence:\n{}\nsequence from atom entries: {}\nsequence without unresolved gaps:{}\nreference sequence: {}".format(domain_id, ''.join(strucseq), degapped_strucseq, seq))
                         else:
-                            print("Warning: Missing residues could not be filled in from sequence information. Keeping unresolved gaps.")
+                            print("Warning: Missing residues could not be filled in from sequence information. Keeping unresolved gaps.", file=sys.stderr)
 
                     ca_coords = np.full((l, 3), float('nan'), dtype=np.float32)
                     cb_coords = np.full((l, 3), float('nan'), dtype=np.float32)
@@ -186,49 +181,6 @@ class CATHDerived(torch.utils.data.Dataset):
 
         return
 
-def _optimistic_resolve_gaps(strucseq, seq):
-    subseqs = [subseq for subseq in ''.join(strucseq).split('-') if subseq != '']
-    longest_subseq = max(subseqs, key=len)
-    longest_start_seq = seq.find(longest_subseq)
-    longest_start_struc = ''.join(strucseq).find(longest_subseq)
-
-    strucseq_copy = [x for x in strucseq]
-
-    for i in range(len(strucseq)):
-        if strucseq[i] == '-':
-            strucseq[i] = seq[longest_start_seq - longest_start_struc + i]
-        else:
-            if strucseq[i] != seq[longest_start_seq - longest_start_struc + i]:
-                # raise RuntimeError("sequence mismatch:{}\n{}\nat index {}".format(''.join(strucseq), seq, i))
-                return strucseq
-
-    return strucseq
-
-# NOTE when the length of the gap in the structure is longer than in the reference sequence
-# TODO only works if the mismatch is in the last gap
-def _length_mismatch_resolve_gaps(strucseq, seq):
-    resolved_boundaries = [(seq.find(subseq), seq.find(subseq)+len(subseq)) for subseq in ''.join(strucseq).split('-') if subseq != '']
-
-    offset = 0
-    for i in range(len(resolved_boundaries)-1):
-        unresolved_start = resolved_boundaries[i][1]
-        unresolved_end = resolved_boundaries[i+1][0]
-        assert unresolved_start <= unresolved_end
-        for j in range(unresolved_start, unresolved_end):
-            if strucseq[j-resolved_boundaries[0][0]] != '-':
-                print(resolved_boundaries)
-                print(i)
-                print('index into ref sequence: ', j)
-                print('index into str sequence: ', j-resolved_boundaries[0][0])
-                print(unresolved_start, unresolved_end)
-                print(''.join(seq[unresolved_start:unresolved_end]))
-                print(strucseq[j-resolved_boundaries[0][0]])
-                # print(strucseq[j-])
-                print(seq[j])
-                assert False
-            strucseq[j-resolved_boundaries[0][0]] = seq[j]
-        offset += strucseq[unresolved_end-resolved_boundaries[0][0]+offset:].count('-') - []
-    return strucseq
 
 def _resolve_gaps(strucseq, seq):
     subseqs = re.findall(r'\w+|-+', ''.join(strucseq))
@@ -246,15 +198,9 @@ def _resolve_gaps(strucseq, seq):
     # NOTE fix false indices from too long gaps before anchor
     for i in range(longest_subseqs_index-2, -1, -2):
         s = subseqs[i]
-        while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)]:
+        while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)] or subseqs_starts[i]<0:
             for j in range(i+1, -1, -1):
                 subseqs_starts[j] += 1
-    # NOTE resolve gaps before anchor
-    for i in range((longest_subseqs_index+1)%2, longest_subseqs_index, 2):
-        s = [x for x in subseqs[i]]
-        for j in range(subseqs_starts[i+1]-subseqs_starts[i]):
-            s[j] = seq[subseqs_starts[i]+j]
-        subseqs[i] = ''.join(s)
 
     # NOTE fix false indices from too long gaps after anchor
     for i in range(longest_subseqs_index+2, len(subseqs), 2):
@@ -262,12 +208,13 @@ def _resolve_gaps(strucseq, seq):
         while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)]:
             for j in range(i, len(subseqs)):
                 subseqs_starts[j] -= 1
-    # NOTE resolve gaps after anchor
-    # TODO do before and after anchor in one loop
-    for i in range(longest_subseqs_index+1, len(subseqs), 2):
+
+    # NOTE resolve gaps
+    for i in range((longest_subseqs_index+1)%2, len(subseqs), 2):
         s = [x for x in subseqs[i]]
         for j in range(subseqs_starts[i+1]-subseqs_starts[i]):
             s[j] = seq[subseqs_starts[i]+j]
         subseqs[i] = ''.join(s)
+
 
     return ''.join(subseqs)
