@@ -39,3 +39,8 @@ strucseq = [x for x in "HMAS----------------------------------------------------
 refseq = "HMASPQFSQQREEDIYRFLKDNGPQRALVIAQALGMRTAKDVNRDLYRMKSRHLLDMDEQSKAWTIYRWTIY"
 result = _resolve_gaps(strucseq, refseq)
 assert ''.join(result.split('-')) in refseq
+
+strucseq = [x for x in "SIIKIDLESKTPIYKQIADQIIELIAKGELKPGDKLPSIRELASMLGVNMLTVNKAYNYLVDEGFIVVQKRRYVVKSEV---WRNMLRVIIYRALAS"]
+refseq = "MTSIIKIDLESKTPIYKQIADQIIELIAKGELKPGDKLPSIRELASMLGVNMLTVNKAYNYLVDEGFIVVQKRRYVVKSEVRDESWRNMLRVIIYRALASNMSKDEIVNEINRVVSEVNSK"
+result = _resolve_gaps(strucseq, refseq)
+assert ''.join(result.split('-')) in refseq
