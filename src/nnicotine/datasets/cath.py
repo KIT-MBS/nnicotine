@@ -36,7 +36,6 @@ class CATHDerived(torch.utils.data.Dataset):
     """
 
     def __init__(self, root, mode='train', version='daily', generate=False, transform=None, target_transform=None, **kwargs):
-        if mode != 'toy': raise NotImplementedError("That stuff comes later")
         self.root = root
         self.mode = mode
         # NOTE there is no validation set for now, test set is for validation, casp set is for 'testing'
@@ -123,26 +122,28 @@ class CATHDerived(torch.utils.data.Dataset):
                 # for i, domain in enumerate(["4ck4A00 v4_2_0 2.40.128.20.7 3-162:A".split()]): # NOTE these guys didn't bother to put the mutated sequence anywhere, TODO i put it in as a quick fix. it would be better to have something scalable
                 # for i, domain in enumerate(["6sxtA02 putative 2.80.10.50.32 338-501:A".split()]):
                 # for i, domain in enumerate(["1br7003 v4_2_0 3.10.110.10.34 430-546:0".split()]): # NOTE this ones seems to be completely bonkers. it's been superseded 20 years ago... why is it still in a cath database?
+                # for i, domain in enumerate(["4k5yA01 v4_2_0 1.20.1070.10.22 115-1002:A,224-368:A".split()]): # NOTE this one has a tag at the end with a weird numbering that is still part of the domain for some reason. i'll tread the upper limit as exclusive, even though i don't think it is (have not seen documentation on this)
 
                     domain_id, version, cath_code, boundaries = domain
                     pdb_id = domain_id[:4]
                     id_dset[i] = np.string_(domain_id)
                     if ',' in boundaries:
-                        # NOTE if the domain consists of several fragments: pick only the longest one
+                        # NOTE if the domain consists of several fragments: pick only the longest one # TODO should be pick the one with the most resolved residues
                         fragment_boundaries = boundaries.split(',')
                         fragment_sizes = []
                         for b in fragment_boundaries:
                             b = b.split(':')[0]
                             lower, upper = re.findall("-*\d+", b)
                             lower = int(lower)
-                            upper = int(upper[1:]) + 1
+                            # NOTE tread upper limit as exclusive
+                            upper = int(upper[1:])
                             fragment_sizes.append(upper-lower)
                         boundaries = fragment_boundaries[np.argmax(fragment_sizes)]
                     boundaries, chain_id = boundaries.split(':')
                     lower, upper = re.findall("-*\d+", boundaries)
 
                     lower = int(lower)
-                    upper = int(upper[1:]) + 1
+                    upper = int(upper[1:])
                     # NOTE if lower > upper assume they included a prefix with some arcane numbering scheme. set lower to 1 and hope nothing to idiiotic happens by sticking to upper. inspired by 2f07B00 303-193
                     if lower > upper: lower = 1
                     assert lower != upper
@@ -206,7 +207,6 @@ class CATHDerived(torch.utils.data.Dataset):
                     #         if r.get_resname() == 'GLY':
                     #             cb_coords[i-lower, :] = ca_coords[i-lower, :]
 
-
                     sample_group = handle.create_group(domain_id)
                     sequence_ds = sample_group.create_dataset('sequence', data=np.string_(seq))
                     ca_ds = sample_group.create_dataset('ca', data=ca_coords)
@@ -268,25 +268,17 @@ def _align_subseqs(strucseq, seq):
         while s != seq[resolved_subseqs_starts[i]:resolved_subseqs_starts[i]+len(s)]:
             for j in range(i, -1, -1):
                 resolved_subseqs_starts[j] -= 1
-    # for i in range(longest_subseqs_index-2, -1, -2):
-    #     s = subseqs[i]
-    #     while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)] or subseqs_starts[i]<0:
-    #         for j in range(i+1, -1, -1):
-    #             subseqs_starts[j] += 1
+                assert resolved_subseqs_starts[j] >= 0
 
     # # NOTE fix false indices from too long gaps after anchor
     for i in range(longest_resolved_index+1, len(resolved_subseqs)):
         s = resolved_subseqs[i]
         while s != seq[resolved_subseqs_starts[i]:resolved_subseqs_starts[i]+len(s)]:
+            # assert s in seq[resolved_subseqs_starts[i]:]
             for j in range(i, len(resolved_subseqs)):
                 resolved_subseqs_starts[j] += 1
+                assert resolved_subseqs_starts[j] <= len(seq)
     assert all([x >= 0 for x in resolved_subseqs_starts])
-
-    # for i in range(longest_subseqs_index+2, len(subseqs), 2):
-    #     s = subseqs[i]
-    #     while s != seq[subseqs_starts[i]:subseqs_starts[i]+len(s)]:
-    #         for j in range(i, len(subseqs)):
-    #             subseqs_starts[j] -= 1
 
     result = ['-']*len(seq)
     for i in range(len(resolved_subseqs)):
@@ -311,6 +303,8 @@ def construct_sample(lower, upper, c, sequence):
     resolvedseq = ''.join([protein_letters_3to1[c[i].get_resname().capitalize()] for i in range(lower, upper) if i in c])
 
     chainseq = ''.join([protein_letters_3to1[c[i].get_resname().capitalize()]  if i in c else '-' for i in range(lower, upper)])
+
+    # TODO remove subseqs shorter than 3 residues
 
     unresolved_prefix_length = 0
     for i in range(lower, upper):
