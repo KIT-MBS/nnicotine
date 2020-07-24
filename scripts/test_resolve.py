@@ -1,46 +1,48 @@
-from nnicotine.datasets.cath import _resolve_gaps
+from nnicotine.datasets.cath import _align_subseqs as _resolve_gaps
 
 refseq = "ABCDEFGHI"
-strucseq = [x for x in refseq]
+strucseq = refseq
 result = _resolve_gaps(strucseq, refseq)
-assert result == refseq
+print(result[0])
+print(refseq)
+assert result[0] == refseq
 
-strucseq = [x for x in "---FGHI"]
+strucseq = "---FGHI"
 result = _resolve_gaps(strucseq, refseq)
-assert result == "CDEFGHI"
+assert result[0] == "-----FGHI"
 
-strucseq = [x for x in "A-----G"]
+strucseq = "A-----G"
 result = _resolve_gaps(strucseq, refseq)
-assert result in refseq
+assert result[0] == "A-----G--"
 
-strucseq = [x for x in "AB-----EFG"]
+strucseq = "AB-----EFG"
 result = _resolve_gaps(strucseq, refseq)
-assert result == "ABCD---EFG"
+assert result[0] == "AB--EFG--"
 
-strucseq = [x for x in "AB-D-E-FGHI"]
+strucseq = "AB-D-E-FGHI"
 result = _resolve_gaps(strucseq, refseq)
-assert result == "ABCD-E-FGHI"
+assert result[0] == "AB-DEFGHI"
 
-strucseq = [x for x in "ABCD--EFG-I"]
+strucseq = "ABCD--EFG-I"
 result = _resolve_gaps(strucseq, refseq)
-assert result == "ABCD--EFGHI"
+assert result[0] == "ABCDEFG-I"
 
-strucseq = [x for x in "B--CD-FG"]
+strucseq = "B--CD-FG"
 result = _resolve_gaps(strucseq, refseq)
-assert result == "B--CDEFG"
+assert result[0] == "-BCD-FG--"
 
 
-strucseq = [x for x in "H--QAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINE-NQLSEHILVER---------AVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDD"]
+strucseq = "H--QAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINE-NQLSEHILVER---------AVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDD"
 refseq = "GSHMQAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINEMNQLSEHILVERATGGKGGGGAVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDDALPLNSLLAAISRFSLQTSARNQWFGTITARDHDDVQQHVDVLLADGKTRLKVAITAQSGARLGLDEGKEVLILLKAPWVGITQDEAVAQNADNQLPGIISHIERGAEQCEVLMALPDGQTLCATVPVNEATSLQQGQNVTAYFNADSVIIATLC"
 result = _resolve_gaps(strucseq, refseq)
-assert ''.join(result.split('-')) in refseq
+assert result[0] == "--H-QAEILLTLKLQQKLFADPRRISLLKHIALSGSISQGAKDAGISYKSAWDAINE-NQLSEHILVER---------AVLTRYGQRLIQLYDLLAQIQQKAFDVLSDDD-----------------------------------------------------------------------------------------------------------------------------------------------------------"
 
-strucseq = [x for x in "HMAS-------------------------------------------------------------------------------------------------------PQFSQQREEDIYRFLKDNGPQRALVIAQALGMRTAKDVNRDLYRMKSRHLLDMDEQSKAWTIY"]
+strucseq = "HMAS-------------------------------------------------------------------------------------------------------PQFSQQREEDIYRFLKDNGPQRALVIAQALGMRTAKDVNRDLYRMKSRHLLDMDEQSKAWTIY"
 refseq = "HMASPQFSQQREEDIYRFLKDNGPQRALVIAQALGMRTAKDVNRDLYRMKSRHLLDMDEQSKAWTIYRWTIY"
 result = _resolve_gaps(strucseq, refseq)
-assert ''.join(result.split('-')) in refseq
+assert result[0] == "HMASPQFSQQREEDIYRFLKDNGPQRALVIAQALGMRTAKDVNRDLYRMKSRHLLDMDEQSKAWTIY-----"
 
-strucseq = [x for x in "SIIKIDLESKTPIYKQIADQIIELIAKGELKPGDKLPSIRELASMLGVNMLTVNKAYNYLVDEGFIVVQKRRYVVKSEV---WRNMLRVIIYRALAS"]
+strucseq = "SIIKIDLESKTPIYKQIADQIIELIAKGELKPGDKLPSIRELASMLGVNMLTVNKAYNYLVDEGFIVVQKRRYVVKSEV---WRNMLRVIIYRALAS"
 refseq = "MTSIIKIDLESKTPIYKQIADQIIELIAKGELKPGDKLPSIRELASMLGVNMLTVNKAYNYLVDEGFIVVQKRRYVVKSEVRDESWRNMLRVIIYRALASNMSKDEIVNEINRVVSEVNSK"
 result = _resolve_gaps(strucseq, refseq)
-assert ''.join(result.split('-')) in refseq
+assert result[0] == "--SIIKIDLESKTPIYKQIADQIIELIAKGELKPGDKLPSIRELASMLGVNMLTVNKAYNYLVDEGFIVVQKRRYVVKSEV----WRNMLRVIIYRALAS---------------------"
