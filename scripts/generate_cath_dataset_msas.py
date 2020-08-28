@@ -11,10 +11,19 @@ root = os.path.join(data_root_dir, "nnicotine")
 pdb_root = os.path.join(data_root_dir, "pdb")
 workdir = os.environ["LOCALSCRATCH"]
 databasename = "UniRef30_2020_03"
+if os.path.isdir(os.path.join(workdir, 'uniref')):
+    database = os.path.join(workdir, 'uniref/'+databasename)
+else:
+    database = os.path.join(data_root_dir, 'uniref/'+databasename)
+
 # database = "uniprot_sprot"
 cath_version = '20200708'
 
-cores = 4 # TODO set to number of cpu cores used by alginment tool
+if "SLURM_JOB_CPUS_PER_NODE" in os.environ:
+    cores = int(os.environ["SLURM_JOB_CPUS_PER_NODE"])/2
+else:
+    cores = 4
+print("{} cores used".format(cores))
 
 # TODO use biopython for this
 def write_seq_file(id, seq, seqfile):
@@ -31,7 +40,6 @@ def hhblits(id, seq, seqfile):
     outfile = os.path.join(workdir, '{}/{}.sto'.format(id[1:3], id))
     seqfile = os.path.join(workdir, '{}/{}.seq'.format(id[1:3], id))
 
-    database = os.path.join(workdir, 'uniref/'+databasename)
 
     # TODO trim unalignable parts?
     # TODO E-value?
@@ -59,8 +67,6 @@ comm = MPI.COMM_WORLD
 
 size = comm.Get_size()
 rank = comm.Get_rank()
-
-# TODO copy database to workdir
 
 for mode in modes:
     print(mode)
