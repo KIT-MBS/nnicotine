@@ -8,6 +8,7 @@
 #SBATCH --mail-user=oskar.taubert@kit.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
 
-srun cp $DATA_PATH/uniclust/UniRef30_2020_03_hhsuite.tar.gz $LOCALSCRATCH
-srun tar -xzf $LOCALSCRATCH/uniclust/UniRef30_2020_03_hhsuite.tar.gz
-srun python generate_dataset.py
+export KMP_AFFINITY=compact,1.0
+
+mpirun --bind-to core --map-by node rsync -r $DATA_PATH/uniref $LOCALSCRATCH
+mpirun --bind-to core --map-by node python generate_dataset.py
