@@ -9,7 +9,7 @@ from nnicotine import datasets
 data_root_dir = os.environ['DATA_PATH']
 root = os.path.join(data_root_dir, "nnicotine")
 pdb_root = os.path.join(data_root_dir, "pdb")
-workdir = os.environ["LOCALSCRATCH"]
+workdir = os.environ["TMP"]
 databasename = "UniRef30_2020_03"
 if os.path.isdir(os.path.join(workdir, 'uniref')):
     database = os.path.join(workdir, 'uniref/'+databasename)
@@ -20,7 +20,7 @@ else:
 cath_version = '20200708'
 
 if "SLURM_JOB_CPUS_PER_NODE" in os.environ:
-    cores = int(os.environ["SLURM_JOB_CPUS_PER_NODE"])/2
+    cores = int(os.environ["SLURM_CPUS_ON_NODE"])/2
 else:
     cores = 4
 print("{} cores used".format(cores))
