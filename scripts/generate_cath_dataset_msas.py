@@ -37,14 +37,14 @@ def hhblits(id, seq, seqfile):
     # seqfile = os.path.join(workdir, '{}/{}.seq'.format(id[1:3], id))
     # write_seq_file(id, seq, seqfile)
     a3mfile = os.path.join(workdir, '{}/{}.a3m'.format(id[1:3], id))
-    outfile = os.path.join(workdir, '{}/{}.sto'.format(id[1:3], id))
+    outfile = os.path.join(workdir, '{}/{}.clu'.format(id[1:3], id))
     seqfile = os.path.join(workdir, '{}/{}.seq'.format(id[1:3], id))
 
 
     # TODO trim unalignable parts?
     # TODO E-value?
     cp = sp.run(['hhblits', '-cpu', '{}'.format(cores), '-i', seqfile, '-d', database, '-oa3m', a3mfile], check=True)
-    cp = sp.run(['reformat.pl', 'a3m', 'sto', a3mfile, outfile], check=True)
+    cp = sp.run(['reformat.pl', 'a3m', 'clu', a3mfile, outfile], check=True)
     return outfile
 
 
@@ -86,7 +86,7 @@ for mode in modes:
         # alignmentfile = jackhmmer(id, seq, seqfile)
         alignmentfile = hhblits(id, seq, seqfile)
 
-        os.makedirs(os.path.join(root, "{}/{}/{}".format(cath_version, 'stockholm', id[1:3])), exist_ok=True)
+        os.makedirs(os.path.join(root, "{}/{}/{}".format(cath_version, 'clustal', id[1:3])), exist_ok=True)
         outfilename = os.path.basename(alignmentfile)
-        sample_outfile = os.path.join(root, "{}/{}/{}/{}".format(cath_version, 'stockholm', id[1:3], outfilename))
+        sample_outfile = os.path.join(root, "{}/{}/{}/{}".format(cath_version, 'clustal', id[1:3], outfilename))
         sp.run(['rsync', alignmentfile, sample_outfile], check=True)
