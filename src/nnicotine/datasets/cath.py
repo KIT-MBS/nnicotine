@@ -8,6 +8,7 @@ import numpy as np
 import h5py
 import torch
 from Bio.PDB.MMCIFParser import MMCIFParser
+from Bio import AlignIO
 from Bio import pairwise2
 from torchvision.datasets.utils import download_url
 from tqdm import tqdm
@@ -72,14 +73,13 @@ class CATHDerived(torch.utils.data.Dataset):
             raise IndexError()
         domain_id = self.h5pyfile['ids'][index].tostring().decode('utf-8')
 
-        # TODO
-        # msa = None
-        # gapped_sequence = None
+        msa_file = os.path.join(self.root, '{}/clustal/{}/{}.clu'.format(self.version, domain_id[1:3], domain_id))
+        sequence = self.h5pyfile[domain_id]['sequence'][...].tostring().decode('utf-8')
+        msa = AlignIO.read(open(msa_file), 'clustal')
+        assert sequence == str(msa[0].seq).replace('-', '')
 
-        # sample = OrderedDict(('sequence', gapped_sequence), ('msa', msa))
-        # target = OrderedDict(('cb', gapped_cb), ('ca', gapped_ca))
-        sample = self.h5pyfile[domain_id]['sequence'][...].tostring().decode('utf-8')
-        target = self.h5pyfile[domain_id]['ca'][...]
+        sample = OrderedDict([('sequence', sequence), ('msa', msa)])
+        target = OrderedDict([('ca', self.h5pyfile[domain_id]['ca'][...]), ('cb', self.h5pyfile[domain_id]['cb'][...])])
 
         return sample, target
 
