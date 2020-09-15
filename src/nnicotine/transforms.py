@@ -5,7 +5,7 @@ from pydca.meanfield_dca import meanfield_dca
 from pydca.plmdca import plmdca
 
 
-def get_transforms(train=True, p=0.3):
+def get_transforms(train=True, p=0.3, atom='cb'):
     sample_transforms = []
     target_transforms = []
     if train:
@@ -13,10 +13,14 @@ def get_transforms(train=True, p=0.3):
     sample_transforms.append(TrimToTarget())
     sample_transforms.append(RandomDrop(p))
     sample_transforms.append(ComputeCouplings())
-    sample_transforms.append(ToTensor)
+    sample_transforms.append(ToTensor())
     sample_transforms = Compose(sample_transforms)
 
-    target_transforms.append(ToContact('cb', '3.0'))
+    target_transforms.append(ToTensor())
+    target_transforms.append(ToDistance('cb'))
+    target_transforms.append(ToBinnedDistance())
+
+    # target_transforms.append(MaskShortRange())
     target_transforms = Compose(target_transforms)
     return sample_transforms, target_transforms
 
@@ -63,7 +67,7 @@ class TrimToTarget():
             trimmed += cols[i]
         sample['msa'] = trimmed
 
-        # NOTE using a 2d np array an transforming back to msa is probably overall better
+        # NOTE using a 2d np array an transforming back to msa is probably better overall
         # indices = np.array([i for i,c in enumerate(gapped_target) if c != '-'])
         # trimmed = np.array([list(r) for r in sample['msa']], np.character)
         # sample['msa'][:,:L] = trimmed[:,:]
@@ -94,7 +98,7 @@ class ComputeCouplings():
         couplings = couplings.reshape(l, nstates, l, nstates)
         couplings = np.swapaxes(couplings, 1, 3)
         couplings = couplings.reshape(l, l, -1)
-        couplings = np.ascontiguousarray(couplings)
+        # couplings = np.ascontiguousarray(couplings)
 
         sample['fields'] = np.array([fields[i] for i in range(len(fields))])
         del sample['msa']
@@ -104,33 +108,60 @@ class ComputeCouplings():
 
 
 class ToTensor():
-    def __init__(self):
+    def __init__(self, keys=None):
+        self.keys = keys
         return
-    def __call__(self):
+    def __call__(self, sample):
+        keys = self.keys
+        if keys is None:
+            keys = sample.keys() # TODO check for ordering
+
+        for k in keys:
+            raise
+
+        # TODO check dims of sample entries
+        # TODO to tensor entries and stack compatible ones
+        raise
+
         return
 
 
+# NOTE probably not needed for distance prediction
 class MaskShortRange():
-    def __init__(self, mindist):
+    def __init__(self, mindist=12):
         return
-    def __call__(self):
-        return
+    def __call__(self, sample):
+        return sample
 
 
 
-class ToContact():
-    def __init__(self, atom='cb', threshold=5.0):
-        self.atom = atom
-        self.threshold = threshold
+class ToBinnedDistance():
+    def __init__(self, bins=64, mindist=2., maxdist=22.):
+        self.bins = bins
+        self.mindist = mindist
+        self.maxdist = maxdist
 
     def __call__(self, coords):
-        coords = coords[self.atom]
+        # TODO
+        raise
 
         return
 
 
-class ToDist():
-    def __init__(self):
+# TODO use squared distance instead?
+class ToDistance():
+    def __init__(self, atom='cb'):
+        self.atom = atom
         return
-    def __call__(self):
-        return
+    def __call__(self, sample):
+        y = sample[self.atom]
+        l, d = y.size()
+        y1 = y.unsqueeze(1)
+        y2 = y.unsqueeze(0)
+        y1 = y1.expand(l, l, d)
+        y2 = y2.expand(l, l, d)
+
+        dist = y2 - y1
+        dist = diff * diff
+        dist = diff.sum(dim=-1)
+        return dist.sqrt()
