@@ -1,8 +1,14 @@
 import numpy as np
 from torchvision import transforms as T
 from Bio.Align import MultipleSeqAlignment
+from Bio.Data.IUPACData import protein_letters
+
 from pydca.meanfield_dca import meanfield_dca
 from pydca.plmdca import plmdca
+
+
+aas = "-" + protein_letters
+default_categories = {aa : i for (i, aa) in enumerate(aas)}
 
 
 def get_transforms(train=True, p=0.3, atom='cb'):
@@ -126,13 +132,23 @@ class ToTensor():
         return
 
 
+class ToCategorical():
+    def __init__(self, categories=default_categories):
+        self.categories = categories
+
+    def __call__(self, sample):
+        s = sample['sequence']
+        s = np.array([self.categories[l] for l in s])
+        sample['sequence'] = s
+        return sample
+
+
 # NOTE probably not needed for distance prediction
 class MaskShortRange():
     def __init__(self, mindist=12):
         return
     def __call__(self, sample):
         return sample
-
 
 
 class ToBinnedDistance():
