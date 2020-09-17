@@ -1,6 +1,8 @@
 import os
 import urllib
 
+# TODO clean up not needed parts
+
 # NOTE adapted from github.com/pytorch/vision
 
 def download_and_extract(url, root, filename):
