@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from torchvision import transforms as T
 from Bio.Align import MultipleSeqAlignment
 from Bio.Data.IUPACData import protein_letters
@@ -17,6 +18,7 @@ def get_transforms(train=True, p=0.3, atom='cb'):
     if train:
         sample_transforms.append(RandomDrop(p))
     sample_transforms.append(TrimToTarget())
+    sample_transforms.append(ToCategorical())
     sample_transforms.append(RandomDrop(p))
     sample_transforms.append(ComputeCouplings())
     sample_transforms.append(ToTensor())
@@ -123,13 +125,10 @@ class ToTensor():
             keys = sample.keys() # TODO check for ordering
 
         for k in keys:
-            raise
+            sample[k] = torch.from_numpy(sample[k])
 
-        # TODO check dims of sample entries
-        # TODO to tensor entries and stack compatible ones
-        raise
+        return sample
 
-        return
 
 
 class ToCategorical():
@@ -152,16 +151,23 @@ class MaskShortRange():
 
 
 class ToBinnedDistance():
-    def __init__(self, bins=64, mindist=2., maxdist=22.):
-        self.bins = bins
+    """
+    NOTE order is inverted, bin 0 is overflow, bin nbins-1 is underflow
+    """
+    def __init__(self, nbins=64, mindist=2., maxdist=22.):
+        self.nbins = nbins
         self.mindist = mindist
         self.maxdist = maxdist
 
-    def __call__(self, coords):
-        # TODO
-        raise
+    def __call__(self, dist):
+        labels = torch.zeros_like(dist, dtype=torch.long)
+        upper = self.maxdist
+        delta = (self.maxdist-self.mindist)/self.nbins
+        for i in range(self.nbins):
+            upper -= delta
+            labels += dist < upper
 
-        return
+        return labels
 
 
 # TODO use squared distance instead?
@@ -178,6 +184,6 @@ class ToDistance():
         y2 = y2.expand(l, l, d)
 
         dist = y2 - y1
-        dist = diff * diff
-        dist = diff.sum(dim=-1)
+        dist = dist * dist
+        dist = dist.sum(dim=-1)
         return dist.sqrt()
