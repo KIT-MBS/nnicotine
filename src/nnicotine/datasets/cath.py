@@ -62,6 +62,10 @@ class CATHDerived(torch.utils.data.Dataset):
         os.makedirs(self.versionroot, exist_ok=True)
         self.cathfile = os.path.join(self.versionroot, "cath-b-s35.gz")
         self.h5pyfilename = os.path.join(root, "{}/{}.hdf5".format(version, mode))
+
+        self.transform = transform
+        self.target_transform = target_transform
+
         if generate:
             self.download()
             self.preprocess(**kwargs)
@@ -80,6 +84,10 @@ class CATHDerived(torch.utils.data.Dataset):
 
         sample = OrderedDict([('sequence', sequence), ('msa', msa)])
         target = OrderedDict([('ca', self.h5pyfile[domain_id]['ca'][...]), ('cb', self.h5pyfile[domain_id]['cb'][...])])
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
 
         return sample, target
 

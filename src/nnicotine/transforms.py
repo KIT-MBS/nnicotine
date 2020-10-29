@@ -108,9 +108,9 @@ class ComputeCouplings():
         couplings = couplings.reshape(l, l, -1)
         # couplings = np.ascontiguousarray(couplings)
 
-        sample['fields'] = np.array([fields[i] for i in range(len(fields))])
+        sample['fields'] = np.array([fields[i] for i in range(len(fields))], dtype=np.float32)
         del sample['msa']
-        sample['couplings'] = couplings
+        sample['couplings'] = couplings.astype(np.float32)
 
         return sample
 
@@ -163,7 +163,7 @@ class ToBinnedDistance():
         labels = torch.zeros_like(dist, dtype=torch.long)
         upper = self.maxdist
         delta = (self.maxdist-self.mindist)/self.nbins
-        for i in range(self.nbins):
+        for i in range(self.nbins-1):
             upper -= delta
             labels += dist < upper
 

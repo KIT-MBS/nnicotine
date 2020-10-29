@@ -85,17 +85,29 @@ class ReversibleLSHSelfAttentionBlock(ReversibleBlock):
         return
 
 
-class ReversibleCompressedAttentionBlock(ReversibleBlock):
-    def __init__(self):
-        return
-
-    def forward(self):
-        return
-
-
-class SelfAttention(nn.Module):
-    def __init__(self):
-        return
+class PositionalEncoding(nn.Module):
+    def __init__(self, dtype=torch.float):
+        super(PositionalEncoding, self).__init__()
+        self.dtype = dtype
 
     def forward(self, x):
-        return
+        b, c, l = x.size()
+        d = x.device
+        y = torch.arange(l, dtype=self.dtype)
+        y = y.expand(b, 1, l)
+        y = torch.cat((x, y), 1)
+        return y
+
+
+class OuterConcatenation(nn.Module):
+    def __init__(self):
+        super(OuterConcatenation, self).__init__()
+
+    def forward(self, x):
+        b, c, l = x.size()
+        x1 = x.unsqueeze(-1)
+        x1 = x1.expand(b, c, l, l)
+
+        x2 = torch.transpose(x1, -1, -2)
+
+        return torch.cat((x1, x2), 1)
