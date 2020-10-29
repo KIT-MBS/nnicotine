@@ -3,7 +3,7 @@ nnicotine
 =========
 
 
-Repository for attention based protein distance prediction for the CASP14 competition.
+Repository for attention based protein distance prediction.
 
 
 Description
@@ -14,13 +14,20 @@ A longer description of your project goes here...
 To Do
 =====
 
-* implement dataset
 * implement convolutional baseline
 * implement transformer model
 * implement revnet
 * implement reformer
 * implement compressed reformer
-* run on pairwise evolutionary features instead of just sequential features
+* implement linformer
+
+Installation
+============
+
+install https://github.com/KIT-MBS/pydca
+this is needed for pre-processing and subject to change
+pip install -e .
+
 
 Note
 ====
