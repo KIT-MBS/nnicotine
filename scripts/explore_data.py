@@ -5,29 +5,24 @@ import os
 from nnicotine import datasets
 from nnicotine import transforms
 
-data_root_dir = os.environ['DATA_PATH']
-root = os.path.join(data_root_dir, "nnicotine")
+
+root = os.path.join(os.environ['DATA_PATH'], "nnicotine")
 cath_version = '20200708'
 mode = "toy"
 
 ds = datasets.CATHDerived(root, mode=mode, version=cath_version, generate=False)
 
-# TODO histogram sequence lengths and MSA effective number of sequences
-
 nsequences = []
-alengthts = []
+neffectivesequences = []
+lengths = []
+gappedlengths = []
 
 Tsample, Ttarget = transforms.get_transforms()
 
 for i, (x, y) in enumerate(ds):
-    # print(i)
-    # print(x['sequence'], x['msa'][0].seq)
-    nsequences.append(len(x['msa']))
-    alengthts.append(x['msa'].get_alignment_length())
+    lenghts.append(len(x['seq']))
+    gappedlengths.append(x['msa'].get_alignment_length())
+    nsequences.append(len(x['msa'][0]))
+    # TODO compute effective sequences
 
-    x = Tsample(x)
-
-
-    break
-
-# TODO plot
+# TODO histogram, plot and save
