@@ -93,7 +93,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         b, c, l = x.size()
         d = x.device
-        y = torch.arange(l, dtype=self.dtype)
+        y = torch.arange(l, dtype=self.dtype, device=x.device)
         y = y.expand(b, 1, l)
         y = torch.cat((x, y), 1)
         return y
