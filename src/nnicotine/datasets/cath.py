@@ -36,9 +36,10 @@ class CATHDerived(torch.utils.data.Dataset):
 
     """
 
-    def __init__(self, root, mode='train', version='daily', generate=False, transform=None, target_transform=None, **kwargs):
+    def __init__(self, root, mode='train', version='daily', generate=False, transform=None, target_transform=None, msa_format='clustal', **kwargs):
         self.root = root
         self.mode = mode
+        self.msa_format = msa_format
         # NOTE there is no validation set for now, test set is for validation, casp set is for 'testing'
         self.modes = ["toy", "train", "test"]
         assert mode in self.modes
@@ -75,11 +76,12 @@ class CATHDerived(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if index >= len(self):
             raise IndexError()
+        msa_extensions = {'stockholm': '.sto', 'clustal': '.clu'}
         domain_id = self.h5pyfile['ids'][index].tostring().decode('utf-8')
 
-        msa_file = os.path.join(self.root, '{}/clustal/{}/{}.clu'.format(self.version, domain_id[1:3], domain_id))
+        msa_file = os.path.join(self.root, f'{self.version}/{self.msa_format}/{domain_id[1:3]}/{domain_id}{msa_extensions[self.msa_format]}')
         sequence = self.h5pyfile[domain_id]['sequence'][...].tostring().decode('utf-8')
-        msa = AlignIO.read(open(msa_file), 'clustal')
+        msa = AlignIO.read(open(msa_file), self.msa_format)
         assert sequence == str(msa[0].seq).replace('-', '')
 
         sample = OrderedDict([('sequence', sequence), ('msa', msa)])
