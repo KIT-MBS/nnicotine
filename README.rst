@@ -14,7 +14,6 @@ A longer description of your project goes here...
 To Do
 =====
 
-* implement convolutional baseline
 * implement transformer model
 * implement revnet
 * implement reformer
